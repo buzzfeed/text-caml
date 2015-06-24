@@ -9,50 +9,72 @@ use YAML::Syck;
 
 my $PARTS_DIR = "$Bin/partials/";
 my $engine = Text::Caml->new;
+$engine->set_templates_path( $PARTS_DIR );
 
 sub startup {
-	my $filename = shift;
-
 	# remove partials directory
-	&shutdown($filename);
+	&shutdown();
 
 	# create partials directory
-	unless ( make_path($PARTS_DIR) ) {
-		die "Can't create [$PARTS_DIR] for [$filename]";
+	make_path( $PARTS_DIR, { error => \my $err } );
+	if ( @$err ) {
+		for my $diag ( @$err ) {
+			my ($file, $message) = %$diag;
+			if ($file eq '') {
+				die "General error: [$message]";
+			}
+			else {
+				die "Can't create [$file]: [$message]";
+			}
+		}
 	}
-
-	$engine->set_templates_path( $PARTS_DIR );
 }
 
 sub setup {
 	my $t = shift;
 
-	# create and fill the partials files
+	# create and fill partials files
 	foreach my $k ( keys %{ $t->{partials} } ) {
 		my $parts_filename = $PARTS_DIR . $k;
 
 		open my $fh, '>', $parts_filename
-			or die "Can't create [$parts_filename]";
+			or die "Can't create [$parts_filename]: [$!]";
 		print $fh $t->{partials}->{$k};
 		close $fh;
 	}
 }
 
-sub teardown { }
+sub teardown {
+	my $t = shift;
+
+	# remove partials files
+	foreach my $k ( keys %{ $t->{partials} } ) {
+		my $parts_filename = $PARTS_DIR . $k;
+
+		unless ( unlink $parts_filename ) {
+			die "Can't remove [$parts_filename]: [$!]";
+		}
+	}
+}
 
 sub shutdown {
-	my $filename = shift;
-
 	# remove partials directory
-	remove_tree($PARTS_DIR, { error => \my $err_list } );
-
-	if ( scalar(@{$err_list}) ) {
-		die "Can't remove [$PARTS_DIR] for [$filename]";
+	remove_tree( $PARTS_DIR, { error => \my $err } );
+	if ( @$err ) {
+		for my $diag ( @$err ) {
+			my ($file, $message) = %$diag;
+			if ($file eq '') {
+				die "General error: [$message]";
+			}
+			else {
+				die "Can't remove [$file]: [$message]";
+			}
+		}
 	}
 }
 
 while ( my $filename = <$Bin/../ext/spec/specs/*.yml> ) {
-	startup($filename);
+	startup();
 
 	my $spec  = LoadFile($filename);
 	my $tests = $spec->{tests};
@@ -78,5 +100,5 @@ while ( my $filename = <$Bin/../ext/spec/specs/*.yml> ) {
 		teardown($t);
 	}
 
-	&shutdown($filename);
+	&shutdown();
 }
