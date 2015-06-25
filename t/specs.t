@@ -88,6 +88,15 @@ while ( my $filename = <$Bin/../ext/spec/specs/*.yml> ) {
 		my $out = '';
 
 		eval {
+			# Ensure that lambdas are properly setup
+			my $data = $t->{data};
+			my @hashes = $data;
+			for my $hash (@hashes) {
+				while (my ($k, $v) = each %$hash) {
+					$hash->{$k} = eval $v->{perl} if ref $v eq 'code';
+					push @hashes, $v              if ref $v eq 'HASH';
+				}
+			}
 			$out = $engine->render( $t->{template}, $t->{data} );
 		};
 		if ( $@ ) {
